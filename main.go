@@ -43,8 +43,7 @@ func statusHandler(w http.ResponseWriter, _ *http.Request) {
 	var ls, err = client.GetLoadStats()
 	if err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		currentStatus := "Unavailable"
-		_, err = w.Write([]byte(fmt.Sprintf("OpenVPN Server %s - Cannot connect\n", currentStatus)))
+		_, err = w.Write([]byte("OpenVPN Server Unavailable - Cannot connect\n"))
 	} else {
 		w.WriteHeader(http.StatusOK)
 		_, err = w.Write([]byte(fmt.Sprintf("OpenVPN Healthy %d %d %d\n", ls.NClients, ls.BytesIn, ls.BytesOut)))
