@@ -13,6 +13,7 @@ import (
 var listenPort int
 var miHost string
 var miPort int
+var debug bool
 
 func init() {
 	const (
@@ -22,6 +23,8 @@ func init() {
 		usageListenPort   = "health check listen port"
 		defaultPort       = 11940
 		usagePort         = "Management Interface Port"
+		defaultDebug      = false
+		usageDebug        = "enable debugging"
 	)
 	flag.StringVar(&miHost, "host", defaultHost, usageHost)
 	flag.StringVar(&miHost, "h", defaultHost, usageHost+" (shorthand)")
@@ -29,6 +32,7 @@ func init() {
 	flag.IntVar(&listenPort, "l", defaultListenPort, usageListenPort+" (shorthand)")
 	flag.IntVar(&miPort, "port", defaultPort, usagePort)
 	flag.IntVar(&miPort, "p", defaultPort, usagePort+" (shorthand)")
+	flag.BoolVar(&debug, "d", defaultDebug, usageDebug)
 }
 
 func connect(addr string, lsCh chan<- openvpn.LoadStat) {
@@ -36,22 +40,26 @@ func connect(addr string, lsCh chan<- openvpn.LoadStat) {
 		eventCh := make(chan openvpn.Event, 10)
 		var mgmt, err = openvpn.Dial(addr, eventCh)
 		if err != nil {
-			panic(err)
-		}
-		go func() {
-			for {
-				time.Sleep(1 * time.Second)
-				loadStat, err := mgmt.LoadStats()
-				if err != nil {
-					lsCh <- openvpn.LoadStat{Clients: -1, BytesIn: -1, BytesOut: -1}
-					break
-				} else {
-					lsCh <- loadStat
+			if debug { log.Printf("Failed to connect to '%s' - %s\n", addr, err.Error())}
+			lsCh <- openvpn.LoadStat{Clients: -1, BytesIn: -1, BytesOut: -1}
+		} else {
+			go func() {
+				for {
+					time.Sleep(1 * time.Second)
+					loadStat, err := mgmt.LoadStats()
+					if debug { log.Printf("load-stats: %d %d %d\n", loadStat.Clients, loadStat.BytesIn, loadStat.BytesOut) }
+					if err != nil {
+						lsCh <- openvpn.LoadStat{Clients: -1, BytesIn: -1, BytesOut: -1}
+						break
+					} else {
+						lsCh <- loadStat
+					}
 				}
+			}()
+			for range eventCh {
 			}
-		}()
-		for range eventCh {
 		}
+		time.Sleep(1 * time.Second)
 	}
 
 }
@@ -74,7 +82,8 @@ func main() {
 
 
 
-func statusHandler(w http.ResponseWriter, _ *http.Request) {
+func statusHandler(w http.ResponseWriter, r *http.Request) {
+	if debug {log.Printf("status request from %s\n", r.RemoteAddr)}
 	if ls.Clients < 0 {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_, _ = w.Write([]byte("OpenVPN Server Unavailable - Cannot connect\n"))
