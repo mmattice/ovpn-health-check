@@ -35,7 +35,7 @@ func init() {
 	flag.BoolVar(&debug, "d", defaultDebug, usageDebug)
 }
 
-func connect(addr string, lsCh chan<- openvpn.LoadStat) {
+func managementConnect(addr string, lsCh chan<- openvpn.LoadStat) {
 	for {
 		eventCh := make(chan openvpn.Event, 10)
 		var mgmt, err = openvpn.Dial(addr, eventCh)
@@ -90,7 +90,8 @@ func main() {
 	flag.Parse()
 	var r = mux.NewRouter()
 	lsCh := make(chan openvpn.LoadStat, 10)
-	go connect(fmt.Sprintf("%s:%d", miHost, miPort), lsCh)
+	addr := fmt.Sprintf("%s:%d", miHost, miPort)
+	go managementConnect(addr, lsCh)
 	go handleLoadStatChannel(lsCh)
 	r.HandleFunc("/status", statusHandler)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", listenPort), r))
