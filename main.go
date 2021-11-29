@@ -43,44 +43,37 @@ func connect(addr string, lsCh chan<- openvpn.LoadStat) {
 			if debug { log.Printf("Failed to connect to '%s' - %s\n", addr, err.Error())}
 			lsCh <- openvpn.LoadStat{Clients: -1, BytesIn: -1, BytesOut: -1}
 		} else {
-			go func() {
-				for {
-					time.Sleep(1 * time.Second)
-					loadStat, err := mgmt.LoadStats()
-					if debug { log.Printf("load-stats: %d %d %d\n", loadStat.Clients, loadStat.BytesIn, loadStat.BytesOut) }
-					if err != nil {
-						lsCh <- openvpn.LoadStat{Clients: -1, BytesIn: -1, BytesOut: -1}
-						break
-					} else {
-						lsCh <- loadStat
-					}
-				}
-			}()
+			go gatherLoadStats(mgmt, lsCh)
 			for range eventCh {
 			}
 		}
 		time.Sleep(1 * time.Second)
 	}
+}
 
+func gatherLoadStats(mgmt *openvpn.MgmtClient, lsCh chan<- openvpn.LoadStat) {
+	for {
+		time.Sleep(1 * time.Second)
+		loadStat, err := mgmt.LoadStats()
+		if debug {
+			log.Printf("load-stats: %d %d %d\n", loadStat.Clients, loadStat.BytesIn, loadStat.BytesOut)
+		}
+		if err != nil {
+			lsCh <- openvpn.LoadStat{Clients: -1, BytesIn: -1, BytesOut: -1}
+			break
+		} else {
+			lsCh <- loadStat
+		}
+	}
 }
 
 var ls = openvpn.LoadStat{Clients: -1, BytesIn: -1, BytesOut: -1}
 
-func main() {
-	flag.Parse()
-	var r = mux.NewRouter()
-	lsCh := make(chan openvpn.LoadStat, 10)
-    go connect(fmt.Sprintf("%s:%d", miHost, miPort), lsCh)
-	go func() {
-		for loadStat := range lsCh {
-			ls = loadStat
-		}
-	}()
-	r.HandleFunc("/status", statusHandler)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", listenPort), r))
+func handleLoadStatChannel(lsCh chan openvpn.LoadStat) {
+	for loadStat := range lsCh {
+		ls = loadStat
+	}
 }
-
-
 
 func statusHandler(w http.ResponseWriter, r *http.Request) {
 	if debug {log.Printf("status request from %s\n", r.RemoteAddr)}
@@ -91,4 +84,14 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(fmt.Sprintf("OpenVPN Healthy %d %d %d\n", ls.Clients, ls.BytesIn, ls.BytesOut)))
 	}
+}
+
+func main() {
+	flag.Parse()
+	var r = mux.NewRouter()
+	lsCh := make(chan openvpn.LoadStat, 10)
+	go connect(fmt.Sprintf("%s:%d", miHost, miPort), lsCh)
+	go handleLoadStatChannel(lsCh)
+	r.HandleFunc("/status", statusHandler)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", listenPort), r))
 }
