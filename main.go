@@ -13,6 +13,7 @@ import (
 var listenPort int
 var miHost string
 var miPort int
+var miSock string
 var debug bool
 
 func init() {
@@ -25,6 +26,8 @@ func init() {
 		usagePort         = "Management Interface Port"
 		defaultDebug      = false
 		usageDebug        = "enable debugging"
+		defaultSock       = ""
+		usageSock         = "unix socket location"
 	)
 	flag.StringVar(&miHost, "host", defaultHost, usageHost)
 	flag.StringVar(&miHost, "h", defaultHost, usageHost+" (shorthand)")
@@ -33,6 +36,8 @@ func init() {
 	flag.IntVar(&miPort, "port", defaultPort, usagePort)
 	flag.IntVar(&miPort, "p", defaultPort, usagePort+" (shorthand)")
 	flag.BoolVar(&debug, "d", defaultDebug, usageDebug)
+	flag.StringVar(&miSock, "s", defaultSock, usageSock + " (shorthand)")
+	flag.StringVar(&miSock, "socket", defaultSock, usageSock)
 }
 
 func managementConnect(addr string, lsCh chan<- openvpn.LoadStat) {
@@ -91,6 +96,9 @@ func main() {
 	var r = mux.NewRouter()
 	lsCh := make(chan openvpn.LoadStat, 10)
 	addr := fmt.Sprintf("%s:%d", miHost, miPort)
+	if miSock != "" {
+		addr = miSock
+	}
 	go managementConnect(addr, lsCh)
 	go handleLoadStatChannel(lsCh)
 	r.HandleFunc("/status", statusHandler)
