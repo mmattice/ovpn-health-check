@@ -49,7 +49,7 @@ func init() {
 	flag.BoolVar(&debug, "d", defaultDebug, usageDebug)
 	flag.StringVar(&miSock, "s", defaultSock, usageSock + " (shorthand)")
 	flag.StringVar(&miSock, "socket", defaultSock, usageSock)
-	flag.BoolVar(&publish, "p", defaultPublish, usagePublish)
+	flag.BoolVar(&publish, "publish", defaultPublish, usagePublish)
 	flag.DurationVar(&metricsInterval, "i", defaultInterval, usageInterval)
 }
 
@@ -143,7 +143,7 @@ func main() {
 			Namespace:         "my-metrics-namespace",
 			Filter:            &config.NoFilter{},
 			ReportingInterval: metricsInterval,
-			StaticDimensions:  []map[string]string{"name":"value"},
+			StaticDimensions:  map[string]string{"name":"value"},
 		}
 		go reporter.Cloudwatch(registry, metricsConf)
 	}
